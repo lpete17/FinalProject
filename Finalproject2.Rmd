@@ -1,0 +1,318 @@
+---
+title: "Comparing Airbnbs in Europe"
+author: "Audrey & Laelle"
+date: May 15, 2018
+output: github_document
+  
+always_allow_html: yes
+---
+
+##Background and Data Manipulation
+Airbnb is a service that allows customers to either rent out their homes or spare their rooms to visiting guests. Over the years it has become a very popular way for world travelers to stay somewhere inexpensive yet also get a home-like atmosphere. Like most hospitality services, there are opportunities for visitors to leave reviews online about the quality of their stay. This data is available online in formatted tables found at http://tomslee.net/airbnb-data-collection-get-the-data separated by destination cities from around the globe. 
+
+For our project we scraped Airbnb data for three different cities (Rome, Paris, and Vienna). We chose these cities because they are all international, relatively close in proximity, and each have over 1,000 observations. For tidying, we made changes to each of the three datasets separately since when combined, there were over 100,000 observations which is a lot to handle at once. Since all three datasets came from the same source and shared many of the same variables, we made the same tidying edits to each dataset. 
+
+First, we thought it was important to get rid of any rows where there were 0 reviews for a given Airbnb. That eliminated 20,000 observations in Paris alone. For our variables of interest, we selected "Room Type" which basically indicates whether the Airbnb is a private room, shared room, or entire apartment. We also selected variables such as "Price", "Reviews" which indicates the number of customer reviews made for a given Airbnb, the customers' rating of "Overall Satisfaction", how many people each airbnb "Accommodates", "City", "Latitude", and "Longitude.
+
+Since the variable for "Overall Satisfaction" consists of scores from 0 being the worst, to 5 being the best, we figured it could be informative to create a new categorical variable to better envision the quality of each Airbnb. Specifically, we made any Airbnb with an overall satisfaction less than 2 out of 5 be labeled as "Poor", Airbnbs that are between 2.5 and 4 "Adequate", and finally those between 4.5 and 5 "Excellent". 
+
+Finally, we created a new variable that categorizes the variable "Accommodates", which is an integer, into a new variable that labels Airbnbs based on their size. Specifically, Airbnbs that accommodates 2 people or less are considered "Small", those that accommodate 3 to 4 people are "Medium", and any that accommodate more than 4 are considered "Large". 
+
+
+```{r, include=FALSE}
+library(tidyverse)
+library(stringr)
+library(rvest)
+library(prettydoc)
+library(RColorBrewer)
+library(leaflet)
+```
+
+
+```{r, include=FALSE}
+paris <- read_csv("Datasets/tomslee_airbnb_paris_1478_2017-07-25.csv")
+
+vienna <- read_csv("Datasets/tomslee_airbnb_vienna_1526_2017-07-25.csv")
+
+rome <- read_csv("Datasets/tomslee_airbnb_rome_1470_2017-07-19.csv")
+```
+
+#Cleaning Each City's Dataset
+```{r}
+#Paris
+paris2 <- paris %>%
+  filter(reviews > 0) %>%
+select(room_id, room_type, city, reviews, overall_satisfaction, accommodates, bedrooms, price, latitude, longitude) %>%
+  mutate(rating_cat = ifelse(overall_satisfaction < 2,                             "poor", 
+                      ifelse(overall_satisfaction < 4,                             "adequate", "excellent")),
+         accommodate_cat = ifelse(accommodates <=2, "small",
+                          ifelse(accommodates <6, "medium",                            "large")))
+
+
+#Vienna
+vienna2 <- vienna %>%
+  filter(reviews > 0) %>%
+  select(room_id, room_type, city, reviews, overall_satisfaction, accommodates, bedrooms, price, latitude, longitude) %>%
+ mutate(rating_cat = ifelse(overall_satisfaction < 2, "poor", 
+                      ifelse(overall_satisfaction < 4,                             "adequate", "excellent")),
+        accommodate_cat = ifelse(accommodates <=2, "small",
+                          ifelse(accommodates <6, "medium",                            "large")))
+
+#Rome
+rome2 <- rome %>% 
+  filter(reviews > 0) %>%
+select(room_id, room_type, city, reviews, overall_satisfaction, accommodates, bedrooms, price, latitude, longitude) %>%
+ mutate(rating_cat = ifelse(overall_satisfaction < 2, "poor", 
+                      ifelse(overall_satisfaction < 4,                             "adequate", "excellent")),
+        accommodate_cat = ifelse(accommodates <=2, "small",
+                          ifelse(accommodates <6, "medium",                            "large")))
+
+```
+
+After we successfully tidied and manipulated the datasets, it was time to join all three into one large datasets containing information from the three cities. To do so, we used a full join since we wanted to include all information from all three datasets. 
+
+#Full join of all city data 
+
+```{r}
+paris_rome <- paris2 %>%
+  full_join(rome2)
+paris_rome
+
+allcities <- paris_rome %>%
+  full_join(vienna2)
+allcities
+
+```
+
+Now that we have our datasets ready to work with, it's time to make some visualizations! We were mainly curious about the general characteristics of Airbnbs in each of the three cities and how they compare to one another. Specifically, are some room types more common in one city than another? Do the prices strongly differ by city? How did visitors tend to rate the Airbnbs and do the ratings differ between cities? More specifically, does price impact how a visitor rates their visit? For a given Airbnb, what characteristics tend to influence the number of visitor reviews? Finally, how does price, room type, and size of an Airbnb relate to one another? 
+
+#Visualizations for Each City
+
+##Room Type by City
+
+```{r,echo=FALSE}
+ggplot(data = allcities) + 
+ geom_bar(mapping = aes(x = room_type), fill="hotpink") + xlab("Room Type") + ylab("Airbnb Count") + ggtitle("What Room Type is Most Common in Each City") + 
+  facet_wrap(~ city) + theme(plot.title = element_text(hjust = 0.5))
+```
+
+First, looking at the types of airbnbs that are most popular in each city, we see that each city has similar distributions in proportions of room types, with entire home or appartment being most popular. Additionally, we are able to get a good idea of how many airbnbs are from each of the cities.
+
+```{r, include=FALSE, eval=FALSE}
+ggplot(data = rome2) +
+  geom_bar(mapping = aes(x = room_type)) + xlab("Room Type") + ylab("Airbnb Count") + ggtitle("What Room Type is Most Common in Rome?")
+
+ggplot(data = paris2) +
+  geom_bar(mapping = aes(x = room_type)) + xlab("Room Type") + ylab("Airbnb Count") + ggtitle("What Room Type is Most Common in Paris?")
+
+ggplot(data = vienna2) +
+  geom_bar(mapping = aes(x = room_type)) + xlab("Room Type") + ylab("Airbnb Count") + ggtitle("What Room Type is Most Common in Vienna?")
+
+```
+
+
+##Distribution of Airbnb Prices by City
+
+
+```{r, echo=FALSE}
+ggplot(data = allcities) + 
+  geom_histogram(mapping = aes(x= price), fill="lightblue" ) + 
+  facet_wrap(~ city) +xlim(0,500) + ylim(0,7500) + geom_vline(xintercept=mean(allcities$price), lwd=1, linetype=2, color="black") + theme(plot.title = element_text(hjust = 0.5)) + xlab("Airbnb Price") + ylab("Count") + ggtitle("How Do Airbnb Prices Vary in Each City?") 
+```
+
+Again, we see similar results for prices of airbnbs for each city. All have similar price distributions, with a mean price just below $100 per night. 
+
+
+```{r, include=FALSE, eval=FALSE}
+romeprice <-ggplot(data = rome2) +
+  geom_histogram(mapping = aes(x = price), fill="blue")
+romeprice + xlim(0,500) + geom_vline(xintercept=mean(rome2$price), lwd=1, linetype=2, color="black") + xlab("Airbnb Price") + ylab("Count") + ggtitle("How Do Airbnb Prices Vary in Rome?") 
+
+parisprice <-ggplot(data = paris2) +
+  geom_histogram(mapping = aes(x = price))
+parisprice + xlim(0,600) + geom_vline(xintercept=mean(rome2$price), lwd=1, linetype=2, color="black") + xlab("Airbnb Price") + ylab("Count") + ggtitle("How Do Airbnb Prices Vary in Paris?") 
+
+viennaprice <-ggplot(data = vienna2) +
+  geom_histogram(mapping = aes(x = price))
+viennaprice + xlim(0,500) + geom_vline(xintercept=mean(rome2$price), lwd=1, linetype=2, color="black") + xlab("Airbnb Price") + ylab("Count") + ggtitle("How Do Airbnb Prices Vary in Vienna?") 
+
+```
+
+
+##Airbnb Ratings Among the European Cities
+
+
+```{r, echo=FALSE}
+ggplot(data = allcities) + 
+  geom_bar(mapping = aes(x = city, fill = rating_cat), position = "dodge") +
+ggtitle("How Do Most People Rate Airbnbs in Each City?") + xlab("City") + ylab("Count") + theme(plot.title = element_text(hjust = 0.5))
+```
+
+Next, we were curious about how ratings looked for each city to see if airbnb users strongler preferred any city over the others. As we can see there were mostly excellent ratings for each city and adequate was constantly the least reported rating. This is somewhat expected as we thought people are usually most likely to feel motivated to rate an airbnb if they either had a really great or poor stay. 
+
+```{r, include=FALSE, eval=FALSE}
+ggplot(data = rome2) +
+  geom_bar(mapping = aes(x = rating_cat)) + xlab("Rating Category") + ylab("Count") + ggtitle("How Do Most People Rate Airbnbs in Rome?")
+
+ggplot(data = paris2) +
+  geom_bar(mapping = aes(x = rating_cat)) + xlab("Rating Category") + ylab("Count") + ggtitle("How Do Most People Rate Airbnbs in Paris?")
+
+ggplot(data = vienna2) +
+  geom_bar(mapping = aes(x = rating_cat)) + xlab("Rating Category") + ylab("Count") + ggtitle("How Do Most People Rate Airbnbs in Vienna?")
+```
+
+
+##Room Type and How it Relates to Airbnb Price
+
+
+```{r, echo=FALSE}
+rome_p_rt<-ggplot(data = rome2, mapping = aes(x = price, colour = room_type)) +
+  geom_density(adjust = 1)
+rome_p_rt + xlim(0,500)
+
+paris_p_rt<-ggplot(data = paris2, mapping = aes(x = price, colour = room_type)) +
+  geom_density(adjust = 1)
+paris_p_rt + xlim(0,600)
+
+vienna_p_rt<-ggplot(data = vienna2, mapping = aes(x = price, colour = room_type)) +
+  geom_density(adjust = 1)
+vienna_p_rt + xlim(0,500)
+
+```
+
+As expected from our intial data visualizations, the prices of each room types are very similar to each other between all the cities. Where shared rooms are consistently the cheapest and entire home or apartment were the most expensive on average. 
+
+##Airbnb Ratings by Price 
+
+```{r, echo=FALSE}
+ggplot(data = allcities) + 
+    geom_boxplot(mapping = aes(x = rating_cat,y=price)) + facet_wrap(~ city) + ylim(0,1000) + xlab("Airbnb Rating") + ylab("Price") + ggtitle("Airbnb Ratings By Price by City") + theme(plot.title = element_text(hjust = 0.5)) +ylim(0,400)
+```
+
+Not a big difference between price of Airbnb and how one rates their stay. Median prices for each cat of ranking are not too different among cities. Within each city, there is not a clear pattern for how one ranks based on price either. Not as clear of a relationship as we expected.
+
+```{r, include=FALSE, eval=FALSE}
+ggplot(data=rome2) +
+  geom_boxplot(mapping = aes(x = rating_cat,y=price)) + ylim(0,1000) + xlab("Airbnb Rating") + ylab("Price") + ggtitle("Airbnb Ratings By Price")
+
+
+ggplot(data=paris2) +
+  geom_boxplot(mapping = aes(x = rating_cat,y=price)) + ylim(0,500) + xlab("Airbnb Rating") + ylab("Price") + ggtitle("Airbnb Ratings By Price")
+#median prices for each cat of ranking are not too different. Median price of airbnb for those who ranked it as excellent is slightly higher than the airbnbs of those who ranked adequate or poor.
+
+ggplot(data=vienna2) +
+  geom_boxplot(mapping = aes(x = rating_cat,y=price)) + ylim(0,500) + xlab("Airbnb Rating") + ylab("Price") + ggtitle("Airbnb Ratings By Price")
+
+
+```
+
+
+##Ratings by Price and Size of Airbnb
+
+
+```{r, echo=FALSE}
+ggplot(data=rome2) +
+  geom_point(mapping=aes(x=overall_satisfaction, y=price, color=accommodate_cat)) + ylim(0,500)
+
+ggplot(data=paris2) +
+  geom_point(mapping=aes(x=overall_satisfaction, y=price, color=accommodate_cat)) + ylim(0,600)
+
+ggplot(data=vienna2) +
+  geom_point(mapping=aes(x=overall_satisfaction, y=price, color=accommodate_cat)) + ylim(0,600)
+
+```
+
+Even though we did not see a large association between price of an Airbnb and the quality of the rating, if we color it by how large of an Airbnb it is, we can see that small Airbnbs are typically cheaper, while large Airbnbs are more expensive. Also, more people tend to respond if they have a very negative or very positive review. 
+
+
+To better explore the relationship between size of an Airbnb and price, we looked at the differences in median prices between the cities. 
+
+##Average Prices by Airbnb Size for Each City
+
+```{r, echo=FALSE}
+ggplot(data=allcities) +
+  geom_boxplot(mapping=aes(x=accommodate_cat, y=price)) + ylim(0,500) +facet_wrap(~city) + xlab("Size of Airbnb") + ylab("Price")
+```
+
+
+```{r, eval=FALSE, include=FALSE}
+ggplot(data=rome2) +
+  geom_boxplot(mapping=aes(x=accommodate_cat, y=price)) + ylim(0,500)
+#large AirBnbs have higher median prices than medium and small ones
+
+ggplot(data=paris2) +
+  geom_boxplot(mapping=aes(x=accommodate_cat, y=price)) + ylim(0,500)
+
+ggplot(data=vienna2) +
+  geom_boxplot(mapping=aes(x=accommodate_cat, y=price)) + ylim(0,500)
+```
+
+
+
+```{r}
+allcities_avprice_size <- allcities %>%
+    group_by(city,accommodate_cat)%>%
+    summarise(avprice=mean(price))
+allcities_avprice_size
+```
+
+
+##Do more people tend to leave reviews depending on price and size of the Airbnb?
+
+```{r, echo=FALSE}
+ggplot(data=allcities) +
+  geom_point(mapping=aes(x=price, y=reviews, color=accommodate_cat)) + xlim(0,1000) + xlab("Price of Airbnb") + ylab("Number of Reviews") + ggtitle("Number of Reviews by Price and Size") +facet_wrap(~city) + theme(plot.title = element_text(hjust = 0.5)) + xlim(0,600)
+```
+
+We can see that the trends between the three cities are quite similar. More people tend to leave reviews for cheaper Airbnbs, specifically Airbnbs below $250 per night. In addition, confirming our previous findings, it is evident that the size of an Airbnb has an positive association with price.
+
+
+```{r, include=FALSE, eval=FALSE}
+ggplot(data=rome2) +
+  geom_point(mapping=aes(x=price, y=reviews, color=accommodate_cat)) + xlim(0,1000) + xlab("Price of Airbnb") + ylab("Number of Reviews") + ggtitle("Number of Reviews by Price and Size")
+
+ggplot(data=paris2) +
+  geom_point(mapping=aes(x=price, y=reviews, color=accommodate_cat)) + xlim(0,1000)+ xlab("Price of Airbnb") + ylab("Number of Reviews") + ggtitle("Number of Reviews by Price and Size")
+
+ggplot(data=vienna2) +
+  geom_point(mapping=aes(x=price, y=reviews, color=accommodate_cat)) + xlim(0,800)+ xlab("Price of Airbnb") + ylab("Number of Reviews") + ggtitle("Number of Reviews by Price and Size")
+```
+
+
+##Overall Satisfaction of Private Rooms in Paris
+
+```{r}
+paris3 <- paris2 %>%
+  filter(price<600, room_type=="Private room") 
+  
+leaflet() %>%
+    addTiles() %>% 
+  addPopups(2.2945,48.8584, "Eiffel Tower",options = popupOptions(closeButton = FALSE)) %>%
+    setView(lng = mean(paris3$longitude), lat = mean(paris3$latitude), 
+            zoom = 13) %>%
+  addCircleMarkers(data = paris3,
+        lat = ~ latitude, lng = ~ longitude,
+radius = ~ (paris3$accommodates), popup = ~ as.factor(overall_satisfaction), weight = 3,
+        color = "red", fillColor = "yellow")
+```
+
+##Prices of "Excellent" Private Room Airbnbs in Rome
+
+```{r}
+rome3 <- rome2 %>%
+  filter(overall_satisfaction=="5", room_type=="Private room") 
+rome3
+
+leaflet() %>%
+    addTiles() %>% 
+  addPopups(12.4922,41.8902, "Colloseum",options = popupOptions(closeButton = FALSE)) %>%
+  addPopups(12.4534,41.9029, "Vatican City",options = popupOptions(closeButton = FALSE)) %>%
+    setView(lng = mean(rome3$longitude), lat = mean(rome3$latitude), 
+            zoom = 13) %>%
+  addCircleMarkers(data = rome3,
+        lat = ~ latitude, lng = ~ longitude,
+radius = ~ (rome3$accommodates), popup = ~ as.factor(price), weight = 3,
+        color = "blue", fillColor = "red")
+```
+
+Overall, we found a lot of interesting information about the general characteristics of Airbnbs in each of the three cities and how they compare to one another. We were suprised to see that there were not many strong differences between the three cities. However, we discovered quite a few fascinating trends within the cities! Some of the main takeaways are that people's overall satisfaction is not strongly influenced with price. Small Airbnbs are typically cheaper, while large Airbnbs are more expensive. Also, more people tend to respond if they have a very negative or very positive review. 
