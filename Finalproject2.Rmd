@@ -2,7 +2,7 @@
 title: "Comparing Airbnbs in Europe"
 author: "Audrey & Laelle"
 date: May 15, 2018
-output: github_document
+output: md_document
   
 always_allow_html: yes
 ---
